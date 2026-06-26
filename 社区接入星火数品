@@ -1,0 +1,910 @@
+<template>
+  <div class="prize-management">
+    <!-- 左侧菜单栏 -->
+    <div class="sidebar">
+      <div class="menu-section collapsible">
+        <div class="menu-item active">任务中心后台 <span class="expand-icon">▼</span></div>
+        <div class="submenu">
+          <div class="submenu-item">任务配置</div>
+          <div class="submenu-item collapsible-submenu">
+            <div class="submenu-item-header" @click="toggleThirdLevel('lottery')">
+              抽奖管理 <span class="expand-icon-small">▼</span>
+            </div>
+            <div class="third-menu" v-show="thirdMenuStates.lottery">
+              <div class="third-menu-item active">奖品管理</div>
+              <div class="third-menu-item">抽奖券管理</div>
+            </div>
+          </div>
+          <div class="submenu-item collapsible-submenu">
+            <div class="submenu-item-header" @click="toggleThirdLevel('prize')">
+              中奖管理 <span class="expand-icon-small">▼</span>
+            </div>
+            <div class="third-menu" v-show="thirdMenuStates.prize">
+              <div class="third-menu-item">中奖列表</div>
+              <div class="third-menu-item">奖品流水</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 主内容区域 -->
+    <div class="main-content">
+      <!-- 顶部面包屑导航 -->
+      <div class="breadcrumb">
+        <span>任务中心后台 / 抽奖管理 / 奖品管理</span>
+      </div>
+
+      <!-- 搜索和操作栏 -->
+      <div class="toolbar">
+        <div class="search-group">
+          <label>奖品类型：</label>
+          <input type="text" placeholder="搜索" class="search-input">
+          <label>奖品ID：</label>
+          <input type="text" placeholder="搜索" class="search-input">
+        </div>
+        <button class="btn-add" @click="openAddDialog">添加</button>
+      </div>
+
+      <!-- 奖品表格 -->
+      <div class="table-container">
+        <table class="prize-table">
+          <thead>
+            <tr>
+              <th>奖品ID</th>
+              <th>奖品名称</th>
+              <th>奖品类型</th>
+              <th>数值</th>
+              <th>更新时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="prize in prizes" :key="prize.id">
+              <td>{{ prize.id }}</td>
+              <td>{{ prize.name }}</td>
+              <td>{{ prize.type }}</td>
+              <td>{{ prize.value }}</td>
+              <td>{{ prize.updateTime }}</td>
+              <td class="action-cell">
+                <button class="btn-action" @click="editPrize(prize)">编辑</button>
+                <button class="btn-action" @click="deletePrize(prize.id)">删除</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 奖品信息对话框 -->
+    <div v-if="showDialog" class="dialog-overlay" @click.self="closeDialog">
+      <div class="dialog">
+        <div class="dialog-header">
+          <span class="dialog-title">奖品信息：</span>
+          <button class="close-btn" @click="closeDialog">×</button>
+        </div>
+
+        <div class="dialog-content">
+          <!-- 奖品名称 -->
+          <div class="form-group">
+            <label>
+              <span class="required">*</span>
+              <span>奖品名称：</span>
+            </label>
+            <input 
+              v-model="formData.name" 
+              type="text" 
+              placeholder="请输入" 
+              class="form-input"
+            >
+          </div>
+
+          <!-- 奖品备注 -->
+          <div class="form-group">
+            <label>
+              <span>奖品备注：</span>
+            </label>
+            <textarea 
+              v-model="formData.remark" 
+              placeholder="（仅在查看模式下使用）" 
+              class="form-textarea"
+            ></textarea>
+          </div>
+
+          <!-- 奖品类型 -->
+          <div class="form-group">
+            <label>
+              <span class="required">*</span>
+              <span>奖品类型：</span>
+            </label>
+            <select v-model="formData.type" class="form-select">
+              <option value="">请选择</option>
+              <option value="直充卡">直充卡</option>
+              <option value="礼品卡">礼品卡</option>
+              <option value="兑换券">兑换券</option>
+              <option value="其他">其他</option>
+            </select>
+          </div>
+
+          <!-- 角标文字 -->
+          <div class="form-group">
+            <label>
+              <span>角标文字：</span>
+            </label>
+            <input 
+              v-model="formData.tag" 
+              type="text" 
+              maxlength="4"
+              placeholder="最多4个字" 
+              class="form-input"
+            >
+          </div>
+
+          <!-- 每份数量 -->
+          <div class="form-group">
+            <label>
+              <span class="required">*</span>
+              <span>每份数量：</span>
+            </label>
+            <input 
+              v-model.number="formData.quantity" 
+              type="number" 
+              placeholder="1" 
+              class="form-input"
+            >
+          </div>
+
+          <!-- 关键ID -->
+          <div class="form-group">
+            <label>
+              <span class="required">*</span>
+              <span>关键ID：</span>
+            </label>
+            <select 
+              v-model="formData.keyId" 
+              class="form-select"
+              :class="{ 'error': !formData.keyId && submitted }"
+            >
+              <option value="">请选择关键ID</option>
+              <option value="id1">关键ID 1</option>
+              <option value="id2">关键ID 2</option>
+              <option value="id3">关键ID 3</option>
+            </select>
+            <span v-if="!formData.keyId && submitted" class="error-text">请选择关键ID</span>
+          </div>
+
+          <!-- 奖品图片 -->
+          <div class="form-group">
+            <label>
+              <span class="required">*</span>
+              <span>奖品图片：</span>
+            </label>
+            <div class="image-upload">
+              <div class="image-preview" v-if="formData.prizeImage">
+                <img :src="formData.prizeImage" :alt="formData.name">
+              </div>
+              <button class="btn-upload" @click="uploadPrizeImage">
+                <span class="upload-icon">+</span>
+              </button>
+              <div class="upload-hint">
+                请上传不超过500KB的PNG/JPG/GIF格式图片
+              </div>
+            </div>
+          </div>
+
+          <!-- 详情图片 -->
+          <div class="form-group">
+            <label>
+              <span>详情图片：</span>
+            </label>
+            <div class="image-upload">
+              <div class="image-preview" v-if="formData.detailImage">
+                <img :src="formData.detailImage" :alt="formData.name">
+              </div>
+              <button class="btn-upload" @click="uploadDetailImage">
+                <span class="upload-icon">+</span>
+              </button>
+              <div class="upload-hint">
+                请上传大小不超过500KB的PNG/JPG/GIF格式图片
+              </div>
+            </div>
+          </div>
+
+          <!-- 奖品数量 -->
+          <div class="form-group">
+            <label>
+              <span class="required">*</span>
+              <span>奖品数量：</span>
+            </label>
+            <select v-model="formData.quantityType" class="form-select">
+              <option value="">请选择</option>
+              <option value="无需创">无需创</option>
+              <option value="限制为">限制为</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="dialog-footer">
+          <button class="btn btn-primary" @click="savePrize">保存</button>
+          <button class="btn btn-secondary" @click="clearForm">清空</button>
+          <button class="btn btn-default" @click="closeDialog">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 文件输入（隐藏） -->
+    <input 
+      ref="fileInput" 
+      type="file" 
+      style="display: none" 
+      accept="image/png,image/jpeg,image/gif"
+      @change="handleImageSelect"
+    >
+  </div>
+</template>
+
+<script>
+import { ref, reactive } from 'vue'
+
+export default {
+  name: 'PrizeManagement',
+  setup() {
+    const showDialog = ref(false)
+    const thirdMenuStates = reactive({
+      lottery: true,
+      prize: false
+    })
+    const submitted = ref(false)
+    const fileInput = ref(null)
+    const currentImageType = ref('')
+
+    const formData = reactive({
+      id: '',
+      name: '',
+      remark: '',
+      type: '',
+      tag: '',
+      quantity: 1,
+      keyId: '',
+      prizeImage: '',
+      detailImage: '',
+      quantityType: '',
+      updateTime: new Date().toLocaleString('zh-CN')
+    })
+
+    const prizes = ref([
+      {
+        id: '2747',
+        name: '会员权限码',
+        type: '权限码',
+        value: '1',
+        updateTime: '2026-04-22 00:58:58'
+      },
+      {
+        id: '2616',
+        name: '互联网诊券',
+        type: '互联网诊券',
+        value: '1',
+        updateTime: '2026-03-31 17:05:10'
+      },
+      {
+        id: '2615',
+        name: '互联网诊券',
+        type: '互联网诊券',
+        value: '1',
+        updateTime: '2026-03-31 16:37:10'
+      },
+      {
+        id: '2614',
+        name: '互联网诊券',
+        type: '互联网诊券',
+        value: '1',
+        updateTime: '2026-03-31 16:37:10'
+      }
+    ])
+
+    const openAddDialog = () => {
+      clearForm()
+      showDialog.value = true
+      submitted.value = false
+    }
+
+    const editPrize = (prize) => {
+      Object.assign(formData, prize)
+      showDialog.value = true
+      submitted.value = false
+    }
+
+    const closeDialog = () => {
+      showDialog.value = false
+      submitted.value = false
+    }
+
+    const clearForm = () => {
+      formData.id = ''
+      formData.name = ''
+      formData.remark = ''
+      formData.type = ''
+      formData.tag = ''
+      formData.quantity = 1
+      formData.keyId = ''
+      formData.prizeImage = ''
+      formData.detailImage = ''
+      formData.quantityType = ''
+    }
+
+    const savePrize = () => {
+      submitted.value = true
+
+      // 验证必填字段
+      if (!formData.name || !formData.type || !formData.keyId || !formData.quantityType) {
+        alert('请填写所有必填字段')
+        return
+      }
+
+      // 添加或更新奖品
+      if (formData.id) {
+        const index = prizes.value.findIndex(p => p.id === formData.id)
+        if (index > -1) {
+          prizes.value[index] = { ...formData }
+        }
+      } else {
+        formData.id = Date.now().toString()
+        prizes.value.push({ ...formData })
+      }
+
+      alert('保存成功')
+      closeDialog()
+    }
+
+    const deletePrize = (id) => {
+      if (confirm('确定删除该奖品吗？')) {
+        prizes.value = prizes.value.filter(p => p.id !== id)
+        alert('删除成功')
+      }
+    }
+
+    const uploadPrizeImage = () => {
+      currentImageType.value = 'prize'
+      fileInput.value?.click()
+    }
+
+    const uploadDetailImage = () => {
+      currentImageType.value = 'detail'
+      fileInput.value?.click()
+    }
+
+    const handleImageSelect = (event) => {
+      const file = event.target.files?.[0]
+      if (file) {
+        // 验证文件大小
+        if (file.size > 500 * 1024) {
+          alert('文件大小不能超过500KB')
+          return
+        }
+
+        // 读取文件
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          const imageData = e.target?.result
+          if (currentImageType.value === 'prize') {
+            formData.prizeImage = imageData
+          } else if (currentImageType.value === 'detail') {
+            formData.detailImage = imageData
+          }
+        }
+        reader.readAsDataURL(file)
+      }
+
+      // 重置文件输入
+      if (fileInput.value) {
+        fileInput.value.value = ''
+      }
+    }
+
+    const toggleThirdLevel = (key) => {
+      thirdMenuStates[key] = !thirdMenuStates[key]
+    }
+
+    return {
+      showDialog,
+      thirdMenuStates,
+      submitted,
+      fileInput,
+      formData,
+      prizes,
+      openAddDialog,
+      editPrize,
+      closeDialog,
+      clearForm,
+      savePrize,
+      deletePrize,
+      uploadPrizeImage,
+      uploadDetailImage,
+      handleImageSelect,
+      toggleThirdLevel
+    }
+  }
+}
+</script>
+
+<style scoped>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.prize-management {
+  display: flex;
+  height: 100vh;
+  background-color: #f5f5f5;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* 侧边栏样式 */
+.sidebar {
+  width: 200px;
+  background-color: #fff;
+  border-right: 1px solid #e0e0e0;
+  overflow-y: auto;
+}
+
+.menu-section {
+  padding: 8px 0;
+}
+
+.menu-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  color: #666;
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.3s ease;
+}
+
+.menu-item:hover {
+  background-color: #f9f9f9;
+}
+
+.menu-item.active {
+  color: #ff1744;
+  background-color: #fff5f7;
+  border-left: 3px solid #ff1744;
+  padding-left: 13px;
+}
+
+.submenu {
+  background-color: #fafafa;
+  padding-left: 16px;
+}
+
+.submenu-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  color: #666;
+  font-size: 13px;
+  transition: all 0.3s ease;
+}
+
+.submenu-item:hover {
+  background-color: #f0f0f0;
+}
+
+.submenu-item.active {
+  color: #ff1744;
+  background-color: #fff5f7;
+  border-left: 3px solid #ff1744;
+  padding-left: 13px;
+}
+
+.expand-icon {
+  font-size: 12px;
+}
+
+.submenu-item-header {
+  padding: 8px 16px;
+  cursor: pointer;
+  color: #666;
+  font-size: 13px;
+  transition: all 0.3s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.submenu-item-header:hover {
+  background-color: #f0f0f0;
+}
+
+.expand-icon-small {
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.collapsible-submenu {
+  padding: 0;
+}
+
+.third-menu {
+  background-color: #f5f5f5;
+  padding-left: 32px;
+}
+
+.third-menu-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  color: #666;
+  font-size: 12px;
+  transition: all 0.3s ease;
+}
+
+.third-menu-item:hover {
+  background-color: #ececec;
+}
+
+.third-menu-item.active {
+  color: #ff1744;
+  background-color: #fff5f7;
+  border-left: 3px solid #ff1744;
+  padding-left: 13px;
+}
+
+/* 主内容区域 */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.breadcrumb {
+  padding: 16px 20px;
+  background-color: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 13px;
+  color: #999;
+}
+
+.toolbar {
+  padding: 16px 20px;
+  background-color: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.search-group {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.search-group label {
+  font-size: 13px;
+  color: #666;
+}
+
+.search-input {
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  font-size: 13px;
+  width: 150px;
+}
+
+.btn-add {
+  padding: 8px 16px;
+  background-color: #ff1744;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background-color 0.3s ease;
+}
+
+.btn-add:hover {
+  background-color: #e8143f;
+}
+
+.table-container {
+  flex: 1;
+  overflow-y: auto;
+  background-color: #fff;
+  margin: 0 20px 20px;
+  border-radius: 3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.prize-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.prize-table thead {
+  background-color: #f5f5f5;
+  border-bottom: 1px solid #e0e0e0;
+  position: sticky;
+  top: 0;
+}
+
+.prize-table th {
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #333;
+}
+
+.prize-table td {
+  padding: 12px;
+  border-bottom: 1px solid #f0f0f0;
+  color: #666;
+}
+
+.prize-table tbody tr:hover {
+  background-color: #fafafa;
+}
+
+.action-cell {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-action {
+  padding: 4px 12px;
+  background-color: transparent;
+  color: #ff1744;
+  border: 1px solid #ff1744;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.3s ease;
+}
+
+.btn-action:hover {
+  background-color: #ff1744;
+  color: white;
+}
+
+/* 对话框样式 */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.dialog {
+  background-color: #fff;
+  border-radius: 3px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.dialog-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dialog-title {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #999;
+  transition: color 0.3s ease;
+}
+
+.close-btn:hover {
+  color: #333;
+}
+
+.dialog-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: #333;
+}
+
+.required {
+  color: #ff1744;
+  margin-right: 4px;
+}
+
+.form-input,
+.form-textarea,
+.form-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  font-size: 13px;
+  font-family: inherit;
+  transition: border-color 0.3s ease;
+}
+
+.form-input:focus,
+.form-textarea:focus,
+.form-select:focus {
+  outline: none;
+  border-color: #ff1744;
+}
+
+.form-input.error,
+.form-select.error {
+  border-color: #ff1744;
+  background-color: #fff5f7;
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.error-text {
+  color: #ff1744;
+  font-size: 12px;
+  margin-top: 4px;
+  display: block;
+}
+
+.image-upload {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.image-preview {
+  width: 80px;
+  height: 80px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f9f9f9;
+}
+
+.image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.btn-upload {
+  width: 80px;
+  height: 80px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  background-color: #f9f9f9;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.btn-upload:hover {
+  border-color: #ff1744;
+  background-color: #fff5f7;
+}
+
+.upload-icon {
+  font-size: 32px;
+  color: #ddd;
+  transition: color 0.3s ease;
+}
+
+.btn-upload:hover .upload-icon {
+  color: #ff1744;
+}
+
+.upload-hint {
+  font-size: 12px;
+  color: #999;
+  line-height: 1.5;
+}
+
+.dialog-footer {
+  padding: 16px 20px;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn {
+  padding: 8px 20px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background-color: #ff1744;
+  color: white;
+  border-color: #ff1744;
+}
+
+.btn-primary:hover {
+  background-color: #e8143f;
+  border-color: #e8143f;
+}
+
+.btn-secondary {
+  background-color: #fff;
+  color: #333;
+  border-color: #ddd;
+}
+
+.btn-secondary:hover {
+  background-color: #f9f9f9;
+}
+
+.btn-default {
+  background-color: #fff;
+  color: #666;
+  border-color: #ddd;
+}
+
+.btn-default:hover {
+  background-color: #f9f9f9;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .prize-management {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    max-height: 200px;
+    border-right: none;
+    border-bottom: 1px solid #e0e0e0;
+  }
+
+  .dialog {
+    width: 95%;
+  }
+}
+</style>
