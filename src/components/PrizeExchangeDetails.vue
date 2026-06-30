@@ -365,6 +365,34 @@
               </div>
             </div>
 
+            <div v-if="shouldShowTrafficCoupon(dialog.form.type)" class="form-row required compact-row">
+              <label>关联流量券:</label>
+              <div class="field-column xinghuo-search-outer">
+                <div class="xinghuo-search">
+                  <input
+                    v-model.trim="trafficCouponSearchKeyword"
+                    :disabled="dialog.mode === 'view'"
+                    type="text"
+                    placeholder="输入关键词检索流量券"
+                    @input="searchTrafficCoupon"
+                    @focus="openTrafficCouponDropdown"
+                    @blur="scheduleCloseTrafficCouponDropdown"
+                  />
+                  <span class="field-caret">⌄</span>
+                </div>
+                <div v-if="trafficCouponDropdownVisible && filteredTrafficCoupons.length" class="xinghuo-dropdown">
+                  <div
+                    v-for="coupon in filteredTrafficCoupons"
+                    :key="coupon.id"
+                    class="xinghuo-dropdown-item"
+                    @mousedown.prevent="selectTrafficCoupon(coupon)"
+                  >
+                    {{ coupon.id }}-{{ coupon.name }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="form-row compact-row">
               <label>角标文案:</label>
               <div class="field-column compact">
@@ -631,6 +659,15 @@ const createXinghuoProducts = () => [
   { code: 'DG20260501006', name: '30元星火数品卡券', denomination: '30元', stock: 1200, price: '30.00', minDiscountLimit: '0.98' }
 ]
 
+const createTrafficCoupons = () => [
+  { id: 'TC20260601001', name: '爱奇艺日包定向流量券' },
+  { id: 'TC20260601002', name: '优酷VIP专属流量券' },
+  { id: 'TC20260601003', name: '腾讯视频定向流量券' },
+  { id: 'TC20260601004', name: '芒果TV定向流量券' },
+  { id: 'TC20260601005', name: '抖音极速版定向流量券' },
+  { id: 'TC20260601006', name: '快手定向流量券' }
+]
+
 const createEmptyDialogForm = () => ({
   id: '',
   name: '',
@@ -638,6 +675,7 @@ const createEmptyDialogForm = () => ({
   type: '',
   prizeCode: '',
   selectedXinghuoProduct: null,
+  selectedTrafficCoupon: null,
   cornerText: '',
   perCount: 1,
   imageKind: 'clock',
@@ -751,7 +789,7 @@ export default {
   name: 'PrizeExchangeDetails',
   setup() {
     const menuSections = createMenuSections()
-    const typeOptions = ['兑换码', '实物', '优惠券', '星火数品直充', '星火数品卡券']
+    const typeOptions = ['兑换码', '实物', '优惠券', '星火数品直充', '星火数品卡券', '流量券']
     const winningPrizeTypeOptions = ['挂件', '礼品卡', '星火数品卡券', '星火数品直充']
     const valueOptions = ['高价值', '中价值', '低价值']
     const strategyLimits = [
@@ -821,6 +859,12 @@ export default {
     const filteredXinghuoProducts = ref([...xinghuoProducts])
     let closeDropdownTimer = null
 
+    const trafficCoupons = createTrafficCoupons()
+    const trafficCouponSearchKeyword = ref('')
+    const trafficCouponDropdownVisible = ref(false)
+    const filteredTrafficCoupons = ref([...trafficCoupons])
+    let trafficCouponCloseTimer = null
+
     const searchXinghuoProduct = () => {
       const keyword = xinghuoSearchKeyword.value.toLowerCase()
       filteredXinghuoProducts.value = xinghuoProducts.filter(
@@ -851,6 +895,41 @@ export default {
           dialog.form.prizeCode = ''
         }
       }, 200)
+    }
+
+    const searchTrafficCoupon = () => {
+      const keyword = trafficCouponSearchKeyword.value.toLowerCase()
+      filteredTrafficCoupons.value = trafficCoupons.filter(
+        (t) =>
+          t.id.toLowerCase().includes(keyword) ||
+          t.name.toLowerCase().includes(keyword)
+      )
+      trafficCouponDropdownVisible.value = true
+    }
+
+    const openTrafficCouponDropdown = () => {
+      clearTimeout(trafficCouponCloseTimer)
+      if (dialog.form.selectedTrafficCoupon) {
+        trafficCouponSearchKeyword.value = ''
+      }
+      searchTrafficCoupon()
+      trafficCouponDropdownVisible.value = true
+    }
+
+    const scheduleCloseTrafficCouponDropdown = () => {
+      trafficCouponCloseTimer = setTimeout(() => {
+        trafficCouponDropdownVisible.value = false
+        if (!trafficCouponSearchKeyword.value && dialog.form.selectedTrafficCoupon) {
+          dialog.form.selectedTrafficCoupon = null
+        }
+      }, 200)
+    }
+
+    const selectTrafficCoupon = (coupon) => {
+      dialog.form.selectedTrafficCoupon = coupon
+      trafficCouponSearchKeyword.value = `${coupon.id}-${coupon.name}`
+      trafficCouponDropdownVisible.value = false
+      filteredTrafficCoupons.value = [...trafficCoupons]
     }
 
     const selectXinghuoProduct = (product) => {
@@ -946,6 +1025,9 @@ export default {
       xinghuoSearchKeyword.value = ''
       xinghuoDropdownVisible.value = false
       filteredXinghuoProducts.value = [...xinghuoProducts]
+      trafficCouponSearchKeyword.value = ''
+      trafficCouponDropdownVisible.value = false
+      filteredTrafficCoupons.value = [...trafficCoupons]
     }
 
     const viewPrize = (item) => {
@@ -996,6 +1078,8 @@ export default {
 
     const shouldShowPrizeCode = (type) => ['星火数品直充', '星火数品卡券'].includes(type)
 
+    const shouldShowTrafficCoupon = (type) => type === '流量券'
+
     const adjustSameUser = (field, delta) => {
       const nextValue = Number(dialog.form.sameUser[field] || 0) + delta
       dialog.form.sameUser[field] = nextValue < 0 ? 0 : nextValue
@@ -1007,6 +1091,10 @@ export default {
       }
 
       if (shouldShowPrizeCode(dialog.form.type) && !dialog.form.selectedXinghuoProduct) {
+        return
+      }
+
+      if (shouldShowTrafficCoupon(dialog.form.type) && !dialog.form.selectedTrafficCoupon) {
         return
       }
 
@@ -1072,6 +1160,7 @@ export default {
       saveDialog,
       selectLeaf,
       shouldShowPrizeCode,
+      shouldShowTrafficCoupon,
       strategyLimits,
       toggleSection,
       toggleShelf,
@@ -1089,7 +1178,14 @@ export default {
       searchXinghuoProduct,
       openXinghuoDropdown,
       scheduleCloseDropdown,
-      selectXinghuoProduct
+      selectXinghuoProduct,
+      trafficCouponSearchKeyword,
+      trafficCouponDropdownVisible,
+      filteredTrafficCoupons,
+      searchTrafficCoupon,
+      openTrafficCouponDropdown,
+      scheduleCloseTrafficCouponDropdown,
+      selectTrafficCoupon
     }
   }
 }
